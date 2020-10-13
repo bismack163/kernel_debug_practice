@@ -148,7 +148,7 @@ static int umh_test(void) {
 		cmdbuf[cmdlen-1] = 0;
 	else
 		cmdbuf[cmdlen] = 0;
-	pr_crit("cmd read %s\n", cmdbuf);
+	pr_crit("cmd read %s\n", cmdbuf); //"/system/bin/top -b -n1"
 //	static char *argv[] = { "/system/bin/ls", "/data", 0 };
 	static char *argv[100];// = { "/system/bin/ls", "/data", 0 };
 	argv[99] = 0;
