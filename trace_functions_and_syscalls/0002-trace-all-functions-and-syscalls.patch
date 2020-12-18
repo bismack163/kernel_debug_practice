@@ -1,0 +1,98 @@
+From b4eac99a1ca75e908ed0e1cca5999d6a9367a526 Mon Sep 17 00:00:00 2001
+From: max <max@ubs>
+Date: Tue, 13 Oct 2020 10:41:06 +0800
+Subject: [PATCH 2/2] trace all functions and syscalls
+
+---
+ trace.c | 61 +++++++++++++++++++++++++++++++--------------------------
+ 1 file changed, 33 insertions(+), 28 deletions(-)
+
+diff --git a/trace.c b/trace.c
+index 4474a1b..0e560dd 100644
+--- a/trace.c
++++ b/trace.c
+@@ -2,48 +2,53 @@
+ #include <time.h>
+ #include <sys/types.h>
+ #include <unistd.h>
++#include <sys/stat.h>
++#include <fcntl.h>
+ 
+ pid_t getpid(void);
+ 
+- 
+ static FILE *fp_trace;
+- 
++int fd;
++
+ void
+ __attribute__ ((constructor))
+-trace_begin (void)
+-{
+- fp_trace = fopen("trace.out", "w");
++trace_begin(void) {
++// fp_trace = fopen("trace.out", "w");
++//	fd = open("trace.out", O_WRONLY|O_CREAT);
++	fd = open("/dev/null", O_WRONLY);
++	printf("========== fd=%d\n", fd);
+ }
+- 
++
+ void
+ __attribute__ ((destructor))
+-trace_end (void)
+-{
+- if(fp_trace != NULL) {
+- fclose(fp_trace);
+- }
++trace_end(void) {
++	if (fd >= 0) {
++		close(fd);
++	}
++// if(fp_trace != NULL) {
++// fclose(fp_trace);
++// }
+ }
+- 
++
+ void
+ __attribute__((no_instrument_function))
+-__cyg_profile_func_enter (void *func,  void *caller)
+-{
+- if(fp_trace != NULL) {
+- pid_t pid;
+- pid = getpid();
+- fprintf(fp_trace, "e%d %p %p %lu\n", pid, func, caller, time(NULL) );
+- }
++__cyg_profile_func_enter(void *func, void *caller) {
++	static char buf[200];
++	int cnt;
++	if (fd > 0) {
++		cnt = snprintf(buf, 199, "==== e %p %p \n", func, caller);
++		write(fd, buf, cnt);
++	}
+ }
+- 
++
+ void
+ __attribute__((no_instrument_function))
+-__cyg_profile_func_exit (void *func, void *caller)
+-{
+- if(fp_trace != NULL) {
+- pid_t pid;
+- pid = getpid();
+- fprintf(fp_trace, "x%d %p %p %lu\n", pid, func, caller, time(NULL));
+- }
++__cyg_profile_func_exit(void *func, void *caller) {
++	static char buf[200];
++	int cnt;
++	if (fd > 0) {
++		cnt = snprintf(buf, 199, "==== x %p %p \n", func, caller);
++		write(fd, buf, cnt);
++	}
+ }
+ 
+-
+-- 
+2.17.1
+

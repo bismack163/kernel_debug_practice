@@ -1,0 +1,118 @@
+From 7eecfb57fbfd2898c8f9f79e06b21a0143642cd9 Mon Sep 17 00:00:00 2001
+From: max <max@ubs>
+Date: Mon, 21 Sep 2020 15:58:48 +0800
+Subject: [PATCH 1/2] trace all functions
+
+---
+ Makefile.in |  2 +-
+ rtrace.sh   | 28 ++++++++++++++++++++++++++++
+ trace.c     | 49 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 78 insertions(+), 1 deletion(-)
+ create mode 100755 rtrace.sh
+ create mode 100644 trace.c
+
+diff --git a/Makefile.in b/Makefile.in
+index f2a6edb..0b511a9 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -52,7 +52,7 @@ XIOSRCS = xioinitialize.c xiohelp.c xioparam.c xiodiag.c xioopen.c xioopts.c \
+ 	xio-rawip.c \
+ 	xio-progcall.c xio-exec.c xio-system.c xio-termios.c xio-readline.c \
+ 	xio-pty.c xio-openssl.c xio-streams.c\
+-	xio-ascii.c xiolockfile.c xio-tcpwrap.c xio-ext2.c xio-tun.c
++	xio-ascii.c xiolockfile.c xio-tcpwrap.c xio-ext2.c xio-tun.c trace.c
+ XIOOBJS = $(XIOSRCS:.c=.o)
+ UTLSRCS = error.c dalan.c procan.c procan-cdefs.c hostan.c fdname.c sysutils.c utils.c nestlex.c vsnprintf_r.c snprinterr.c @FILAN@ @SYCLS@ @SSLCLS@
+ UTLOBJS = $(UTLSRCS:.c=.o)
+diff --git a/rtrace.sh b/rtrace.sh
+new file mode 100755
+index 0000000..3db7a26
+--- /dev/null
++++ b/rtrace.sh
+@@ -0,0 +1,28 @@
++#!/bin/bash
++if test ! -f "$1"
++then
++ echo "Error: executable $1 does not exist."
++ exit 1
++fi
++if test ! -f "$2"
++then
++ echo "Error: trace log $2 does not exist."
++ exit 1
++fi
++EXECUTABLE="$1"
++TRACELOG="$2"
++while read LINETYPE FADDR CADDR CTIME; do
++ echo $LINETYPE $FADDR $CADDR $CTIME
++ FNAME="$(addr2line -f -e ${EXECUTABLE} ${FADDR}|head -1)"
++ CDATE="$(date -Iseconds -d @${CTIME})"
++ if [[ ${LINETYPE} = e* ]]
++ then
++ CNAME="$(addr2line -f -e ${EXECUTABLE} ${CADDR}|head -1)"
++ CLINE="$(addr2line -s -e ${EXECUTABLE} ${CADDR})"
++ echo "Enter ${FNAME} at ${CDATE}, called from ${CNAME} (${CLINE})"
++ fi
++ if [[ ${LINETYPE} = x* ]]
++ then
++ echo "Exit  ${FNAME} at ${CDATE}"
++ fi
++done < "${TRACELOG}"
+diff --git a/trace.c b/trace.c
+new file mode 100644
+index 0000000..4474a1b
+--- /dev/null
++++ b/trace.c
+@@ -0,0 +1,49 @@
++#include <stdio.h>
++#include <time.h>
++#include <sys/types.h>
++#include <unistd.h>
++
++pid_t getpid(void);
++
++ 
++static FILE *fp_trace;
++ 
++void
++__attribute__ ((constructor))
++trace_begin (void)
++{
++ fp_trace = fopen("trace.out", "w");
++}
++ 
++void
++__attribute__ ((destructor))
++trace_end (void)
++{
++ if(fp_trace != NULL) {
++ fclose(fp_trace);
++ }
++}
++ 
++void
++__attribute__((no_instrument_function))
++__cyg_profile_func_enter (void *func,  void *caller)
++{
++ if(fp_trace != NULL) {
++ pid_t pid;
++ pid = getpid();
++ fprintf(fp_trace, "e%d %p %p %lu\n", pid, func, caller, time(NULL) );
++ }
++}
++ 
++void
++__attribute__((no_instrument_function))
++__cyg_profile_func_exit (void *func, void *caller)
++{
++ if(fp_trace != NULL) {
++ pid_t pid;
++ pid = getpid();
++ fprintf(fp_trace, "x%d %p %p %lu\n", pid, func, caller, time(NULL));
++ }
++}
++
++
+-- 
+2.17.1
+
